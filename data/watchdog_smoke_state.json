@@ -1,0 +1,12 @@
+{
+  "incidents": {
+    "DATA STALE": {
+      "active": false,
+      "last_notified_at": null
+    },
+    "SERVICE STOPPED": {
+      "active": true,
+      "last_notified_at": null
+    }
+  }
+}

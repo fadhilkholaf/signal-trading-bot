@@ -1,0 +1,15 @@
+[Unit]
+Description=Trading bot Telegram health watchdog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tradingbot
+Group=tradingbot
+WorkingDirectory=/opt/trading-bot
+EnvironmentFile=/opt/trading-bot/.env
+ExecStart=/opt/trading-bot/.venv/bin/python -m scripts.watchdog
+NoNewPrivileges=true
+PrivateTmp=true
+
