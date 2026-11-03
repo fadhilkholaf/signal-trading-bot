@@ -56,7 +56,12 @@ class PublicExchange:
         for attempt in range(self.settings.max_retries):
             try:
                 ticker = await self.exchange.fetch_ticker(symbol)
-                return {"bid": ticker.get("bid"), "ask": ticker.get("ask"), "last": ticker.get("last"), "timestamp": ticker.get("timestamp")}
+                bid, ask = ticker.get("bid"), ticker.get("ask")
+                if bid is None or ask is None:
+                    book = await self.exchange.fetch_order_book(symbol, limit=5)
+                    bid = book.get("bids", [[None]])[0][0] if book.get("bids") else None
+                    ask = book.get("asks", [[None]])[0][0] if book.get("asks") else None
+                return {"bid": bid, "ask": ask, "last": ticker.get("last"), "timestamp": ticker.get("timestamp")}
             except Exception as exc:
                 last = exc
                 logger.warning("ticker fetch failed", extra={"symbol": symbol, "attempt": attempt + 1, "category": self.error_category(exc), "error_type": type(exc).__name__, "error": str(exc) or repr(exc)})
