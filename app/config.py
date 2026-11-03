@@ -42,6 +42,7 @@ class Settings:
     database_url: str = "sqlite:///data/trading_bot.sqlite3"
     log_level: str = "INFO"
     log_json: bool = True
+    log_repeated_evaluations: bool = False
     telegram_enabled: bool = True
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
@@ -130,7 +131,7 @@ class Settings:
             env_name = field.upper()
             if field in {"symbols", "timeframes"}:
                 values[field] = _csv(env_name, ",".join(defaults[field])) if get_value(env_name) is None else tuple(x.strip() for x in get_value(env_name).split(",") if x.strip())
-            elif field in {"log_json", "telegram_enabled", "telegram_send_no_trade", "telegram_send_state_transitions", "dry_run", "use_5m_entry_refinement", "watchdog_send_recovery"}:
+            elif field in {"log_json", "log_repeated_evaluations", "telegram_enabled", "telegram_send_no_trade", "telegram_send_state_transitions", "dry_run", "use_5m_entry_refinement", "watchdog_send_recovery"}:
                 raw = get_value(env_name)
                 values[field] = defaults[field] if raw is None else raw.lower() in {"1", "true", "yes", "on"}
             elif field in {"strategy_profile", "exchange_id", "market_type", "database_url", "log_level", "telegram_bot_token", "telegram_chat_id", "backtest_execution_model", "alert_day_timezone"}:

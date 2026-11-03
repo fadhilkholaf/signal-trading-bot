@@ -12,7 +12,8 @@ from .health import Heartbeat
 logger = logging.getLogger(__name__)
 
 
-async def run_once(settings, exchange, db, notifier, heartbeat=None):
+async def run_once(settings, exchange, db, notifier, heartbeat=None, evaluation_state=None):
+    evaluation_state = evaluation_state if evaluation_state is not None else {}
     for symbol in settings.symbols:
         try:
             market = None
@@ -33,7 +34,15 @@ async def run_once(settings, exchange, db, notifier, heartbeat=None):
             if heartbeat: heartbeat.mark_data(symbol, frames, market)
             for tf, frame in frames.items(): db.save_candles(settings.exchange_id, symbol, tf, [(int(i.timestamp()*1000), r.open,r.high,r.low,r.close,r.volume) for i,r in frame.iterrows()])
             signal = make_signal(symbol, frames, settings, market); db.save_signal(signal)
-            logger.info("signal evaluated: %s %s (%s)", symbol, signal.signal.value, signal.explanation)
+            refinement = signal.indicators.get("entry_refinement", {}).get("status", "not_configured")
+            state_key = (signal.signal.value, signal.source_candle_ms, signal.condition_score, tuple(signal.hard_gate_failures), refinement)
+            log_context = {"symbol": symbol, "profile": signal.profile, "signal": signal.signal.value, "condition_score": signal.condition_score, "source_candle_ms": signal.source_candle_ms, "spread_percent": signal.spread_percent, "rejection_reasons": list(signal.hard_gate_failures)}
+            changed = evaluation_state.get(symbol) != state_key
+            if changed or settings.log_repeated_evaluations:
+                logger.info("signal evaluation state: %s", signal.explanation, extra=log_context)
+            else:
+                logger.debug("unchanged signal evaluation", extra=log_context)
+            evaluation_state[symbol] = state_key
             if settings.telegram_enabled and db.can_alert(signal, settings.cooldown_minutes, settings.telegram_send_no_trade, settings.max_alerts_per_pair_per_day, settings.alert_day_timezone):
                 try:
                     message_id = notifier.send(signal); db.record_alert(signal, "sent", message_id); logger.info("alert sent: %s %s", symbol, signal.signal.value)
@@ -46,12 +55,12 @@ async def run_once(settings, exchange, db, notifier, heartbeat=None):
 
 async def async_main(once: bool = False, disable_telegram: bool = False):
     settings = Settings.from_env(); configure_logging(settings.log_level, settings.log_json)
-    db = Database(settings.database_path); exchange = PublicExchange(settings); notifier = TelegramNotifier(settings); heartbeat = Heartbeat(settings.heartbeat_path)
+    db = Database(settings.database_path); exchange = PublicExchange(settings); notifier = TelegramNotifier(settings); heartbeat = Heartbeat(settings.heartbeat_path); evaluation_state = {}
     # The required heartbeat set is the base strategy set; optional 5M refinement never makes health fail.
     heartbeat.initialize(settings.strategy_profile, settings.symbols, settings.timeframes)
     try:
         while True:
-            await run_once(settings, exchange, db, notifier, heartbeat)
+            await run_once(settings, exchange, db, notifier, heartbeat, evaluation_state)
             if once: break
             await asyncio.sleep(settings.poll_interval_seconds)
     finally: await exchange.close()
