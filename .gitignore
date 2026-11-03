@@ -19,6 +19,7 @@ env/
 # Runtime data and logs
 data/*.sqlite3
 data/*.sqlite3-*
+data/*.json
 *.log
 
 # Backtest inputs and generated reports
